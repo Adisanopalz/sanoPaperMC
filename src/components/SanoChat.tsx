@@ -53,8 +53,8 @@ export default function SanoChat({ isOpen, onClose, isSidebar = false, user = nu
     setMessages(prev => {
       if (prev.length > 0) return prev;
       const welcomeMsg = user 
-        ? `Halo **${user.displayName || 'Sano Citizen'}**! Saya SanoChat, asisten AI pribadi Anda. Ada yang bisa saya bantu dengan PaperMC atau server Anda hari ini?`
-        : 'Halo! Saya **SanoChat**. Saya ahli dalam PaperMC dan server Minecraft. Bagaimana saya bisa membantu Anda hari ini?';
+        ? `Halo **${user.displayName || 'Sano Citizen'}**! Saya SanoDevMC, asisten AI pribadi Anda. Ada yang bisa saya bantu dengan PaperMC atau server Anda hari ini?`
+        : 'Halo! Saya **SanoDevMC**. Saya ahli dalam PaperMC dan server Minecraft. Bagaimana saya bisa membantu Anda hari ini?';
       return [{ role: 'model', text: welcomeMsg }];
     });
   }, [user]);
@@ -95,7 +95,7 @@ export default function SanoChat({ isOpen, onClose, isSidebar = false, user = nu
           { role: 'user', parts: [{ text: userMessage }] }
         ],
         config: {
-          systemInstruction: "Anda adalah SanoChat, asisten AI untuk web app Sano PaperMC. Anda ahli dalam Minecraft, teknis PaperMC, optimasi server, plugin, dan hal-hal terkait Paper server. Gunakan bahasa yang santai tapi profesional. Jika ditanya tentang link download, ingatkan user bahwa mereka bisa mengklik card di halaman utama."
+          systemInstruction: "Anda adalah SanoDevMC, asisten AI untuk web app SanoDevMC. Anda ahli dalam Minecraft, teknis PaperMC, optimasi server, plugin, dan hal-hal terkait Paper server. Gunakan bahasa yang santai tapi profesional. Jika ditanya tentang link download, ingatkan user bahwa mereka bisa mengklik card di halaman utama."
         }
       });
 
@@ -223,7 +223,7 @@ export default function SanoChat({ isOpen, onClose, isSidebar = false, user = nu
                 className="flex flex-col gap-1"
               >
                 <p className={`text-[10px] uppercase tracking-wider font-bold mb-1 ${m.role === 'model' ? 'text-cyan-400' : 'text-white/40'}`}>
-                  {m.role === 'model' ? 'SanoChat' : 'User'}
+                  {m.role === 'model' ? 'SanoDevMC' : 'User'}
                 </p>
                 <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${
                   m.role === 'user' 
@@ -238,7 +238,7 @@ export default function SanoChat({ isOpen, onClose, isSidebar = false, user = nu
             ))}
             {isLoading && (
               <div className="flex flex-col gap-1 animate-pulse">
-                <p className="text-[10px] uppercase tracking-wider font-bold mb-1 text-cyan-400">SanoChat</p>
+                <p className="text-[10px] uppercase tracking-wider font-bold mb-1 text-cyan-400">SanoDevMC</p>
                 <div className="bg-cyan-500/5 border border-cyan-500/10 rounded-xl px-4 py-3 text-zinc-500 text-sm">
                   Berpikir...
                 </div>

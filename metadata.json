@@ -1,6 +1,6 @@
 {
-  "name": "Sano PaperMC",
-  "description": "Download PaperMC server jars for your Minecraft server with one click. Integrated with SanoChat AI.",
+  "name": "SanoDevMC",
+  "description": "Download PaperMC server jars for your Minecraft server with one click. Integrated with SanoDev AI.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

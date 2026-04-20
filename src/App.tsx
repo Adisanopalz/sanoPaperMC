@@ -129,8 +129,8 @@ export default function App() {
               <div className="w-8 h-8 rounded bg-cyan-600 flex items-center justify-center lg:hidden">
                 <Server size={18} className="text-white" />
               </div>
-              <span className="hidden sm:inline">Sano PaperMC</span>
-              <span className="sm:hidden">Sano PMC</span>
+              <span className="hidden sm:inline">SanoDevMC</span>
+              <span className="sm:hidden">SanoDev</span>
             </h1>
             <nav className="hidden md:flex gap-6 text-[10px] font-bold tracking-widest uppercase">
               <button 
