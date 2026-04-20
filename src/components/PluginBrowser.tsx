@@ -115,7 +115,6 @@ export default function PluginBrowser() {
   };
 
   const searchPlugins = async (val: string, source: 'modrinth' | 'hangar', sort: string, pageNum: number) => {
-    if (!val.trim()) return;
     setLoading(true);
     setError(null);
     const offset = (pageNum - 1) * limit;
@@ -173,11 +172,7 @@ export default function PluginBrowser() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (query) searchPlugins(query, activeSource, sortBy, page);
-      else {
-        setResults([]);
-        setTotalResults(0);
-      }
+      searchPlugins(query, activeSource, sortBy, page);
     }, 500);
     return () => clearTimeout(timer);
   }, [query, activeSource, sortBy, page]);
@@ -438,12 +433,6 @@ export default function PluginBrowser() {
                 </div>
               </motion.div>
             ))
-          ) : !query ? (
-              <div className="col-span-full py-32 flex flex-col items-center justify-center text-white/10 text-center">
-                <Package size={80} className="mb-6 opacity-40" />
-                <h4 className="text-lg font-bold uppercase tracking-[0.2em]">Cari Plugin Sekarang</h4>
-                <p className="text-sm max-w-xs mt-2 px-10">Mulai mengetik untuk mencari ribuan alat optimasi untuk server PaperMC Anda.</p>
-              </div>
           ) : (
             <div className="col-span-full py-32 text-center">
                <AlertCircle size={40} className="mx-auto mb-4 text-white/20" />
