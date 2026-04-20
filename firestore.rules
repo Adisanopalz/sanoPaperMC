@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.size() >= 2 && data.size() <= 6 &&
+               data.uid == request.auth.uid &&
+               data.email is string && data.email.size() <= 256;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false; // Users cannot list other users
+      
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.createdAt == request.time;
+                      
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                      request.resource.data.uid == resource.data.uid &&
+                      request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastLogin']);
+
+      // Saved Plugins Subcollection
+      match /saved_plugins/{pluginId} {
+        function isValidPlugin(data) {
+          return data.size() >= 3 && data.size() <= 5 &&
+                 data.pluginId is string && data.pluginId.size() <= 128 &&
+                 data.title is string && data.title.size() <= 128 &&
+                 data.source in ['modrinth', 'hangar'];
+        }
+
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && isValidId(pluginId) && isValidPlugin(request.resource.data) &&
+                        request.resource.data.savedAt == request.time;
+                        
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

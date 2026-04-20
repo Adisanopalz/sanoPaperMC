@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "SavedPlugin": {
+      "title": "Saved Plugin",
+      "description": "A plugin saved by the user",
+      "type": "object",
+      "properties": {
+        "pluginId": { "type": "string" },
+        "title": { "type": "string" },
+        "source": { "type": "string", "enum": ["modrinth", "hangar"] },
+        "iconUrl": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pluginId", "title", "source"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/saved_plugins/{pluginId}": {
+      "schema": "SavedPlugin",
+      "description": "Plugins saved by a user"
+    }
+  }
+}

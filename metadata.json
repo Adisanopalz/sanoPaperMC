@@ -1,6 +1,6 @@
 {
   "name": "Sano PaperMC",
-  "description": "Instant Minecraft PaperMC server.jar downloads with version filtering and theme support.",
+  "description": "Download PaperMC server jars for your Minecraft server with one click. Integrated with SanoChat AI.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
