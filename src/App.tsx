@@ -15,7 +15,8 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -38,28 +39,33 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isFloatingChatOpen, setIsFloatingChatOpen] = useState(false);
 
   // Sync user with Firestore
   const syncUserToFirestore = async (user: FirebaseUser) => {
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
 
-    const userData = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      lastLogin: serverTimestamp(),
-    };
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        lastLogin: serverTimestamp(),
+      };
 
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        ...userData,
-        createdAt: serverTimestamp(),
-      });
-    } else {
-      await setDoc(userRef, userData, { merge: true });
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          ...userData,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        await setDoc(userRef, userData, { merge: true });
+      }
+    } catch (err) {
+      console.error('Firestore sync error:', err);
     }
   };
 
@@ -75,11 +81,19 @@ export default function App() {
   }, []);
 
   const handleLogin = async (provider: 'google' | 'github') => {
+    setAuthError(null);
     try {
       const targetProvider = provider === 'google' ? googleProvider : githubProvider;
       await signInWithPopup(auth, targetProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Auth error:', error);
+      if (error.code === 'auth/popup-blocked') {
+        setAuthError('Popup diblokir oleh browser. Silakan izinkan popup untuk login.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // Ignore user closing the popup
+      } else {
+        setAuthError('Gagal menyambungkan ke akun. Silakan coba lagi.');
+      }
     }
   };
 
@@ -147,6 +161,13 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
+            {authError && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-[9px] font-bold text-red-400 uppercase tracking-widest animate-pulse">
+                <AlertCircle size={10} />
+                {authError}
+              </div>
+            )}
+            
             {isAuthLoading ? (
               <div className="w-8 h-8 rounded-full bg-white/5 animate-pulse" />
             ) : user ? (
@@ -177,21 +198,27 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 pr-2 border-r border-white/10 mr-2">
-                <button 
-                  onClick={() => handleLogin('google')}
-                  className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all group"
-                  title="Sign in with Google"
-                >
-                  <LogIn size={16} className="text-cyan-400 group-hover:scale-110 transition-transform" />
-                </button>
-                <button 
-                  onClick={() => handleLogin('github')}
-                  className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all group"
-                  title="Sign in with GitHub"
-                >
-                  <Github size={16} className="text-white group-hover:scale-110 transition-transform" />
-                </button>
+              <div className="flex items-center gap-4 pr-2 border-r border-white/10 mr-2">
+                <div className="hidden md:block text-right">
+                  <p className="text-[10px] font-black text-white/40 uppercase leading-none">Sync Cloud</p>
+                  <p className="text-[8px] text-white/20 uppercase tracking-widest font-bold mt-1 italic">Sign in to save</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleLogin('google')}
+                    className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all group"
+                    title="Sign in with Google"
+                  >
+                    <LogIn size={16} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                  </button>
+                  <button 
+                    onClick={() => handleLogin('github')}
+                    className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all group"
+                    title="Sign in with GitHub"
+                  >
+                    <Github size={16} className="text-white group-hover:scale-110 transition-transform" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="hidden sm:block text-[10px] text-white/20 tracking-[0.2em] font-mono">SYS.VER: 4.2.0-SANO</div>

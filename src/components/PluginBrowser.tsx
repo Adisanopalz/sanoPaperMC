@@ -18,7 +18,7 @@ import Markdown from 'react-markdown';
 
 interface PluginProject {
   id: string;
-  source: 'modrinth' | 'hangar';
+  source: 'modrinth' | 'hangar' | 'spigot';
   title: string;
   description: string;
   icon_url: string;
@@ -41,11 +41,12 @@ interface PluginDetails extends PluginProject {
   categories?: string[];
   versions: VersionData[];
   dependencies_names?: string[];
+  related?: PluginProject[];
 }
 
 export default function PluginBrowser() {
   const [query, setQuery] = useState('');
-  const [activeSource, setActiveSource] = useState<'modrinth' | 'hangar'>('modrinth');
+  const [activeSource, setActiveSource] = useState<'modrinth' | 'hangar' | 'spigot'>('modrinth');
   const [results, setResults] = useState<PluginProject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,10 +76,33 @@ export default function PluginBrowser() {
         const projectData = await projectRes.json();
         const versionsData = await versionsRes.json();
 
+        // Fetch related projects (same categories)
+        let relatedProjects: PluginProject[] = [];
+        try {
+          if (projectData.categories && projectData.categories.length > 0) {
+            const firstCategory = projectData.categories[0];
+            const relatedRes = await fetch(`https://api.modrinth.com/v2/search?facets=[["categories:${firstCategory}"],["project_type:mod"]]&limit=4`);
+            const relatedData = await relatedRes.json();
+            relatedProjects = relatedData.hits
+              .filter((hit: any) => hit.project_id !== plugin.id)
+              .map((hit: any) => ({
+                id: hit.project_id,
+                source: 'modrinth',
+                title: hit.title,
+                description: hit.description,
+                icon_url: hit.icon_url,
+                downloads: hit.downloads,
+                slug: hit.slug,
+                author: hit.author,
+              })).slice(0, 3);
+          }
+        } catch (e) { console.error("Related fetch error", e); }
+
         setPluginDetails({
           ...plugin,
           body: projectData.body,
           categories: projectData.categories,
+          related: relatedProjects,
           versions: versionsData.map((v: any) => ({
             version_number: v.version_number,
             changelog: v.changelog,
@@ -87,7 +111,7 @@ export default function PluginBrowser() {
             dependencies: v.dependencies
           }))
         });
-      } else {
+      } else if (plugin.source === 'hangar') {
         const [projectRes, versionsRes] = await Promise.all([
           fetch(`https://hangar.papermc.io/api/v1/projects/${plugin.owner}/${plugin.slug}`),
           fetch(`https://hangar.papermc.io/api/v1/projects/${plugin.owner}/${plugin.slug}/versions?limit=10`)
@@ -95,15 +119,53 @@ export default function PluginBrowser() {
         const projectData = await projectRes.json();
         const versionsData = await versionsRes.json();
 
+        // Fetch related projects (same owner)
+        let relatedProjects: PluginProject[] = [];
+        try {
+          const relatedRes = await fetch(`https://hangar.papermc.io/api/v1/projects?owner=${plugin.owner}&limit=4`);
+          const relatedData = await relatedRes.json();
+          relatedProjects = (relatedData.result || [])
+            .filter((hit: any) => hit.namespace.slug !== plugin.slug)
+            .map((hit: any) => ({
+              id: hit.namespace.slug,
+              source: 'hangar',
+              title: hit.name,
+              description: hit.description,
+              icon_url: hit.avatarUrl,
+              downloads: hit.stats.downloads,
+              slug: hit.namespace.slug,
+              author: hit.namespace.owner,
+              owner: hit.namespace.owner,
+            })).slice(0, 3);
+        } catch (e) { console.error("Related fetch error", e); }
+
         setPluginDetails({
           ...plugin,
           body: projectData.description,
+          related: relatedProjects,
           versions: versionsData.result.map((v: any) => ({
             version_number: v.name,
             changelog: v.description,
             date_published: v.createdAt,
             files: [], // Hangar download is different
             dependencies: v.dependencies?.map((d: any) => ({ project_id: d.name, dependency_type: d.required ? 'required' : 'optional' }))
+          }))
+        });
+      } else if (plugin.source === 'spigot') {
+        const [projectRes, versionsRes] = await Promise.all([
+          fetch(`https://api.spiget.org/v2/resources/${plugin.id}`),
+          fetch(`https://api.spiget.org/v2/resources/${plugin.id}/versions?size=10`)
+        ]);
+        const projectData = await projectRes.json();
+        const versionsData = await versionsRes.json();
+
+        setPluginDetails({
+          ...plugin,
+          body: projectData.description ? atob(projectData.description).replace(/<[^>]*>?/gm, '') : 'No detailed description found.',
+          versions: versionsData.map((v: any) => ({
+            version_number: v.name,
+            date_published: new Date(v.releaseDate * 1000).toISOString(),
+            files: [{ url: `https://api.spiget.org/v2/resources/${plugin.id}/versions/${v.id}/download`, filename: `${plugin.slug}-${v.name}.jar` }]
           }))
         });
       }
@@ -114,7 +176,7 @@ export default function PluginBrowser() {
     }
   };
 
-  const searchPlugins = async (val: string, source: 'modrinth' | 'hangar', sort: string, pageNum: number) => {
+  const searchPlugins = async (val: string, source: 'modrinth' | 'hangar' | 'spigot', sort: string, pageNum: number) => {
     setLoading(true);
     setError(null);
     const offset = (pageNum - 1) * limit;
@@ -135,7 +197,7 @@ export default function PluginBrowser() {
           author: hit.author,
         }));
         setResults(mappedResults);
-      } else {
+      } else if (source === 'hangar') {
         // Hangar Search API mapping for sort
         let hangarSort = 'relevance';
         if (sort === 'downloads') hangarSort = 'downloads';
@@ -157,9 +219,25 @@ export default function PluginBrowser() {
           owner: hit.namespace.owner,
         }));
         setResults(mappedResults);
+      } else if (source === 'spigot') {
+        const queryPart = val.trim() ? `/search/${encodeURIComponent(val)}` : '';
+        const response = await fetch(`https://api.spiget.org/v2/resources${queryPart}?size=${limit}&page=${pageNum}&fields=id,name,tag,icon,downloads,author`);
+        const data = await response.json();
+        setTotalResults(1000); // Spiget doesn't give total count easily in search, capped for UX
+        const mappedResults: PluginProject[] = (Array.isArray(data) ? data : []).map((hit: any) => ({
+          id: hit.id.toString(),
+          source: 'spigot',
+          title: hit.name,
+          description: hit.tag,
+          icon_url: hit.icon?.url ? `https://www.spigotmc.org/${hit.icon.url}` : 'https://www.spigotmc.org/styles/spigot/xenforo/avatars/avatar_m.png',
+          downloads: hit.downloads,
+          slug: hit.name.toLowerCase().replace(/ /g, '-'),
+          author: hit.author?.id?.toString() || 'Unknown',
+        }));
+        setResults(mappedResults);
       }
     } catch (err) {
-      setError(`Koneksi ke repository (${source === 'modrinth' ? 'Modrinth' : 'Hangar'}) terputus.`);
+      setError(`Koneksi ke repository (${source.toUpperCase()}) terputus.`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -194,13 +272,16 @@ export default function PluginBrowser() {
           downloadUrl = file.url;
           filename = file.filename;
         }
-      } else {
+      } else if (plugin.source === 'hangar') {
         const versionRes = await fetch(`https://hangar.papermc.io/api/v1/projects/${plugin.owner}/${plugin.slug}/versions?limit=1`);
         const data = await versionRes.json();
         if (data.result && data.result.length > 0) {
           const version = data.result[0].name;
           downloadUrl = `https://hangar.papermc.io/api/v1/projects/${plugin.owner}/${plugin.slug}/versions/${version}/download`;
         }
+      } else if (plugin.source === 'spigot') {
+        downloadUrl = `https://api.spiget.org/v2/resources/${plugin.id}/download`;
+        filename = `${plugin.slug}.jar`;
       }
 
       if (downloadUrl) {
@@ -275,14 +356,14 @@ export default function PluginBrowser() {
         <div>
           <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-1">Global Repository Integration</h4>
           <h3 className="text-3xl font-bold text-white tracking-tight">Plugin Archive</h3>
-          <p className="text-white/30 text-xs mt-2 max-w-md">Menghubungkan Anda langsung ke ribuan plugin di Modrinth & Hangar tanpa harus meninggalkan dashboard.</p>
+          <p className="text-white/30 text-xs mt-2 max-w-md">Menghubungkan Anda langsung ke ribuan plugin di Modrinth, Hangar, & SpigotMC tanpa harus meninggalkan dashboard.</p>
         </div>
         
         <div className="w-full md:w-96 relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-cyan-500 transition-colors" size={18} />
           <input 
             type="text" 
-            placeholder={`Cari di ${activeSource === 'modrinth' ? 'Modrinth' : 'Hangar'}...`}
+            placeholder={`Cari di ${activeSource === 'modrinth' ? 'Modrinth' : activeSource === 'hangar' ? 'Hangar' : 'SpigotMC'}...`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-cyan-500/50 transition-all font-medium"
@@ -303,6 +384,12 @@ export default function PluginBrowser() {
             className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${activeSource === 'hangar' ? 'bg-cyan-500 text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
           >
             Hangar
+          </button>
+          <button 
+            onClick={() => setActiveSource('spigot')}
+            className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${activeSource === 'spigot' ? 'bg-cyan-500 text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+          >
+            SpigotMC
           </button>
         </div>
 
@@ -405,7 +492,7 @@ export default function PluginBrowser() {
                   
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <a 
-                      href={plugin.source === 'modrinth' ? `https://modrinth.com/mod/${plugin.slug}` : `https://hangar.papermc.io/${plugin.owner}/${plugin.slug}`}
+                      href={plugin.source === 'modrinth' ? `https://modrinth.com/mod/${plugin.slug}` : plugin.source === 'hangar' ? `https://hangar.papermc.io/${plugin.owner}/${plugin.slug}` : `https://www.spigotmc.org/resources/${plugin.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-white/5 text-white/20 hover:text-white rounded-lg transition-colors"
@@ -603,6 +690,38 @@ export default function PluginBrowser() {
                         </div>
                       </section>
                     </div>
+
+                    {/* Similar Projects */}
+                    {pluginDetails.related && pluginDetails.related.length > 0 && (
+                      <section className="space-y-6 pt-10 border-t border-white/5">
+                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/60">
+                          <Package size={14} />
+                          Similar Projects / From Same Author
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {pluginDetails.related.map((rel, i) => (
+                            <div 
+                              key={i} 
+                              onClick={() => fetchPluginDetails(rel)}
+                              className="p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-cyan-500/30 transition-all cursor-pointer group/rel"
+                            >
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-8 h-8 rounded-lg bg-black border border-white/10 overflow-hidden flex-shrink-0">
+                                  <img src={rel.icon_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h5 className="text-[10px] font-bold text-white truncate group-hover/rel:text-cyan-400 transition-colors">{rel.title}</h5>
+                                  <p className="text-[8px] text-white/30 uppercase font-black truncate">BY {rel.author}</p>
+                                </div>
+                              </div>
+                              <p className="text-[9px] text-white/40 line-clamp-2 leading-relaxed h-7">
+                                {rel.description}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-20 text-white/20 uppercase font-black tracking-widest">
@@ -615,7 +734,7 @@ export default function PluginBrowser() {
               <div className="p-6 border-t border-white/5 bg-black/20 flex flex-col sm:flex-row items-center justify-between gap-4">
                  <div className="flex items-center gap-4 order-2 sm:order-1">
                     <a 
-                      href={selectedPlugin.source === 'modrinth' ? `https://modrinth.com/mod/${selectedPlugin.slug}` : `https://hangar.papermc.io/${selectedPlugin.owner}/${selectedPlugin.slug}`}
+                      href={selectedPlugin.source === 'modrinth' ? `https://modrinth.com/mod/${selectedPlugin.slug}` : selectedPlugin.source === 'hangar' ? `https://hangar.papermc.io/${selectedPlugin.owner}/${selectedPlugin.slug}` : `https://www.spigotmc.org/resources/${selectedPlugin.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-6 py-3 bg-white/5 text-white/60 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all inline-flex items-center gap-2"
